@@ -11,6 +11,7 @@ SCREENSHOT_FILE = os.path.join(TEST_OUTPUT_DIR, "screen.png")
 TEMPLATE_DIR = "templates"
 GAME_ICON_TEMPLATE = os.path.join(TEMPLATE_DIR, "game_icon.png")  # a cropped image of the Captain Tsubasa icon
 GAME_OPEN_TEMPLATE = os.path.join(TEMPLATE_DIR, "game_open.png")  # optional template to detect game main screen
+APP_PACKAGE = "com.klab.captain283.global"
 
 
 def run_adb(cmd_args, capture=False, text=False):
@@ -109,7 +110,11 @@ def wait_for_game_open(timeout=60, poll_interval=2):
     return False
 
 def close_game():
-    """Close the game by pressing home button."""
+    """Close the game by force-stopping the app package if set, otherwise send HOME."""
+    if APP_PACKAGE:
+        run_adb(["shell", "am", "force-stop", APP_PACKAGE])
+        print(f"Force-stopped {APP_PACKAGE}.")
+        return
     run_adb(["shell", "input", "keyevent", "3"])  # KEYCODE_HOME
     print("Closed the game (sent HOME).")
 
