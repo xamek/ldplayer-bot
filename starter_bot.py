@@ -7,7 +7,8 @@ import numpy as np
 TEST_OUTPUT_DIR = "test-output"
 ADB_PATH = "adb"
 SCREENSHOT_FILE = os.path.join(TEST_OUTPUT_DIR, "screen.png")
-GAME_ICON_TEMPLATE = "game_icon.png"  # a cropped image of the Captain Tsubasa icon
+TEMPLATE_DIR = "templates"
+GAME_ICON_TEMPLATE = os.path.join(TEMPLATE_DIR, "game_icon.png")  # a cropped image of the Captain Tsubasa icon
 
 def adb_command(cmd):
     """Run an adb shell command."""
