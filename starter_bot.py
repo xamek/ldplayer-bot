@@ -9,6 +9,7 @@ ADB_PATH = "adb"
 SCREENSHOT_FILE = os.path.join(TEST_OUTPUT_DIR, "screen.png")
 TEMPLATE_DIR = "templates"
 GAME_ICON_TEMPLATE = os.path.join(TEMPLATE_DIR, "game_icon.png")  # a cropped image of the Captain Tsubasa icon
+GAME_OPEN_TEMPLATE = os.path.join(TEMPLATE_DIR, "game_open.png")  # optional template to detect game main screen
 
 def adb_command(cmd):
     """Run an adb shell command."""
@@ -43,6 +44,18 @@ def find_icon_and_tap(screenshot_file, template_file):
         print("Game icon not found.")
         return False
 
+def template_present(screenshot_file, template_file, threshold=0.8):
+    """Return True if the template is found in the given screenshot."""
+    if not os.path.exists(screenshot_file) or not os.path.exists(template_file):
+        return False
+    img = cv2.imread(screenshot_file)
+    template = cv2.imread(template_file)
+    if img is None or template is None:
+        return False
+    result = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
+    _, max_val, _, _ = cv2.minMaxLoc(result)
+    return max_val >= threshold
+
 def close_game():
     """Close the game by pressing home button."""
     adb_command(["shell", "input", "keyevent", "3"])  # KEYCODE_HOME
@@ -53,8 +66,39 @@ if __name__ == "__main__":
     screenshot(SCREENSHOT_FILE)
     if find_icon_and_tap(SCREENSHOT_FILE, GAME_ICON_TEMPLATE):
         print("Waiting for game to open...")
-        time.sleep(10)  # wait for game to load
-        screenshot(os.path.join(TEST_OUTPUT_DIR, "game_open.png"))
-        print("Captured screenshot of the game.")
+        # Poll for the game opening. If `templates/game_open.png` exists, use it;
+        # otherwise detect a screen change compared to the pre-launch screenshot.
+        timeout = 60  # seconds
+        poll_interval = 2  # seconds
+        start = time.time()
+        launched = False
+        while time.time() - start < timeout:
+            screenshot(SCREENSHOT_FILE)
+            # If an explicit game-open template exists, check for it
+            if os.path.exists(GAME_OPEN_TEMPLATE) and template_present(SCREENSHOT_FILE, GAME_OPEN_TEMPLATE):
+                launched = True
+                break
+            # Fallback: detect significant screen change from the original launcher screenshot
+            try:
+                prev = cv2.imread(os.path.join(TEST_OUTPUT_DIR, "screen.png"))
+                curr = cv2.imread(SCREENSHOT_FILE)
+                if prev is not None and curr is not None and prev.shape == curr.shape:
+                    diff = cv2.absdiff(prev, curr)
+                    gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+                    _, thresh = cv2.threshold(gray, 25, 255, cv2.THRESH_BINARY)
+                    non_zero = cv2.countNonZero(thresh)
+                    total = thresh.shape[0] * thresh.shape[1]
+                    ratio = non_zero / float(total)
+                    if ratio > 0.02:  # >2% of pixels changed — likely the app opened
+                        launched = True
+                        break
+            except Exception:
+                pass
+            time.sleep(poll_interval)
+        if launched:
+            dest = os.path.join(TEST_OUTPUT_DIR, "game_open.png")
+            # ensure a final capture of the opened game
+            screenshot(dest)
+            print("Captured screenshot of the game.")
         close_game()
     print("Done.")
