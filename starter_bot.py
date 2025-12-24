@@ -1,6 +1,7 @@
 import os
 import subprocess
 import time
+from pathlib import Path
 import cv2
 import numpy as np
 
@@ -11,90 +12,115 @@ TEMPLATE_DIR = "templates"
 GAME_ICON_TEMPLATE = os.path.join(TEMPLATE_DIR, "game_icon.png")  # a cropped image of the Captain Tsubasa icon
 GAME_OPEN_TEMPLATE = os.path.join(TEMPLATE_DIR, "game_open.png")  # optional template to detect game main screen
 
-def adb_command(cmd):
-    """Run an adb shell command."""
-    full_cmd = [ADB_PATH] + cmd
-    subprocess.run(full_cmd, capture_output=True)
+
+def run_adb(cmd_args, capture=False, text=False):
+    """Run adb command and optionally capture output.
+
+    `cmd_args` is the list of arguments after `adb`.
+    Returns the CompletedProcess when `capture=True`, otherwise returns None.
+    """
+    full_cmd = [ADB_PATH] + list(cmd_args)
+    if capture:
+        return subprocess.run(full_cmd, capture_output=True, text=text)
+    subprocess.run(full_cmd)
 
 def screenshot(filename):
     """Capture a screenshot from LDPlayer and ensure output dir exists."""
-    out_dir = os.path.dirname(filename) or TEST_OUTPUT_DIR
-    os.makedirs(out_dir, exist_ok=True)
-    with open(filename, "wb") as f:
-        subprocess.run([ADB_PATH, "exec-out", "screencap", "-p"], stdout=f)
-    print(f"Screenshot saved to {filename}")
+    out_dir = Path(filename).parent
+    if str(out_dir) == ".":
+        out_dir = Path(TEST_OUTPUT_DIR)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    proc = run_adb(["exec-out", "screencap", "-p"], capture=True)
+    if proc and proc.stdout:
+        # proc.stdout may be bytes when text=False; ensure we write bytes
+        data = proc.stdout if isinstance(proc.stdout, (bytes, bytearray)) else proc.stdout.encode("utf-8")
+        with open(filename, "wb") as f:
+            f.write(data)
+        print(f"Screenshot saved to {filename}")
+    else:
+        print("Failed to capture screenshot")
 
-def find_icon_and_tap(screenshot_file, template_file):
-    """Find the game icon in screenshot and tap it."""
-    img = cv2.imread(screenshot_file)
-    template = cv2.imread(template_file)
+def match_template(screenshot_file, template_file):
+    """Return (max_val, top_left, (w,h)) if match succeeded, else None."""
+    if not Path(screenshot_file).exists() or not Path(template_file).exists():
+        return None
+    img = cv2.imread(str(screenshot_file))
+    template = cv2.imread(str(template_file))
+    if img is None or template is None:
+        return None
     result = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
-    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+    _, max_val, _, max_loc = cv2.minMaxLoc(result)
+    h, w = template.shape[:2]
+    return max_val, max_loc, (w, h)
 
-    threshold = 0.8  # adjust if needed
+
+def find_icon_and_tap(screenshot_file, template_file, threshold=0.8):
+    """Find the template in screenshot and tap its center via ADB."""
+    res = match_template(screenshot_file, template_file)
+    if not res:
+        print("Game icon not found (no template or screenshot).")
+        return False
+    max_val, (x, y), (w, h) = res[0], res[1], res[2]
     if max_val >= threshold:
-        x, y = max_loc
-        h, w = template.shape[:2]
-        center_x = x + w // 2
-        center_y = y + h // 2
-        adb_command(["shell", "input", "tap", str(center_x), str(center_y)])
+        center_x = int(x + w // 2)
+        center_y = int(y + h // 2)
+        run_adb(["shell", "input", "tap", str(center_x), str(center_y)])
         print(f"Tapped game icon at ({center_x}, {center_y})")
         return True
-    else:
-        print("Game icon not found.")
-        return False
+    print("Game icon not found (below threshold).")
+    return False
 
 def template_present(screenshot_file, template_file, threshold=0.8):
     """Return True if the template is found in the given screenshot."""
-    if not os.path.exists(screenshot_file) or not os.path.exists(template_file):
+    res = match_template(screenshot_file, template_file)
+    if not res:
         return False
-    img = cv2.imread(screenshot_file)
-    template = cv2.imread(template_file)
-    if img is None or template is None:
-        return False
-    result = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
-    _, max_val, _, _ = cv2.minMaxLoc(result)
+    max_val = res[0]
     return max_val >= threshold
+
+
+def wait_for_game_open(timeout=60, poll_interval=2):
+    """Poll until the game main screen appears or timeout.
+
+    Returns True if the game is detected open, False on timeout.
+    """
+    start = time.time()
+    while time.time() - start < timeout:
+        screenshot(SCREENSHOT_FILE)
+        # If an explicit game-open template exists, check for it
+        if Path(GAME_OPEN_TEMPLATE).exists() and template_present(SCREENSHOT_FILE, GAME_OPEN_TEMPLATE):
+            return True
+        # Fallback: detect significant screen change from the original launcher screenshot
+        try:
+            prev = cv2.imread(os.path.join(TEST_OUTPUT_DIR, "screen.png"))
+            curr = cv2.imread(SCREENSHOT_FILE)
+            if prev is not None and curr is not None and prev.shape == curr.shape:
+                diff = cv2.absdiff(prev, curr)
+                gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+                _, thresh = cv2.threshold(gray, 25, 255, cv2.THRESH_BINARY)
+                non_zero = cv2.countNonZero(thresh)
+                total = thresh.shape[0] * thresh.shape[1]
+                ratio = non_zero / float(total)
+                if ratio > 0.02:  # >2% of pixels changed — likely the app opened
+                    return True
+        except Exception:
+            pass
+        time.sleep(poll_interval)
+    return False
 
 def close_game():
     """Close the game by pressing home button."""
-    adb_command(["shell", "input", "keyevent", "3"])  # KEYCODE_HOME
+    run_adb(["shell", "input", "keyevent", "3"])  # KEYCODE_HOME
     print("Closed the game (sent HOME).")
 
-if __name__ == "__main__":
+
+def main():
     print("Detecting game icon...")
     screenshot(SCREENSHOT_FILE)
     if find_icon_and_tap(SCREENSHOT_FILE, GAME_ICON_TEMPLATE):
         print("Waiting for game to open...")
-        # Poll for the game opening. If `templates/game_open.png` exists, use it;
-        # otherwise detect a screen change compared to the pre-launch screenshot.
-        timeout = 60  # seconds
-        poll_interval = 2  # seconds
-        start = time.time()
-        launched = False
-        while time.time() - start < timeout:
-            screenshot(SCREENSHOT_FILE)
-            # If an explicit game-open template exists, check for it
-            if os.path.exists(GAME_OPEN_TEMPLATE) and template_present(SCREENSHOT_FILE, GAME_OPEN_TEMPLATE):
-                launched = True
-                break
-            # Fallback: detect significant screen change from the original launcher screenshot
-            try:
-                prev = cv2.imread(os.path.join(TEST_OUTPUT_DIR, "screen.png"))
-                curr = cv2.imread(SCREENSHOT_FILE)
-                if prev is not None and curr is not None and prev.shape == curr.shape:
-                    diff = cv2.absdiff(prev, curr)
-                    gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
-                    _, thresh = cv2.threshold(gray, 25, 255, cv2.THRESH_BINARY)
-                    non_zero = cv2.countNonZero(thresh)
-                    total = thresh.shape[0] * thresh.shape[1]
-                    ratio = non_zero / float(total)
-                    if ratio > 0.02:  # >2% of pixels changed — likely the app opened
-                        launched = True
-                        break
-            except Exception:
-                pass
-            time.sleep(poll_interval)
+        # Wait for the game to open (use dedicated helper)
+        launched = wait_for_game_open(timeout=60, poll_interval=2)
         if launched:
             dest = os.path.join(TEST_OUTPUT_DIR, "game_open.png")
             # ensure a final capture of the opened game
@@ -102,3 +128,6 @@ if __name__ == "__main__":
             print("Captured screenshot of the game.")
         close_game()
     print("Done.")
+
+if __name__ == "__main__":
+    main()
