@@ -1,10 +1,12 @@
+import os
 import subprocess
 import time
 import cv2
 import numpy as np
 
+TEST_OUTPUT_DIR = "test-output"
 ADB_PATH = "adb"
-SCREENSHOT_FILE = "screen.png"
+SCREENSHOT_FILE = os.path.join(TEST_OUTPUT_DIR, "screen.png")
 GAME_ICON_TEMPLATE = "game_icon.png"  # a cropped image of the Captain Tsubasa icon
 
 def adb_command(cmd):
@@ -13,7 +15,9 @@ def adb_command(cmd):
     subprocess.run(full_cmd, capture_output=True)
 
 def screenshot(filename):
-    """Capture a screenshot from LDPlayer."""
+    """Capture a screenshot from LDPlayer and ensure output dir exists."""
+    out_dir = os.path.dirname(filename) or TEST_OUTPUT_DIR
+    os.makedirs(out_dir, exist_ok=True)
     with open(filename, "wb") as f:
         subprocess.run([ADB_PATH, "exec-out", "screencap", "-p"], stdout=f)
     print(f"Screenshot saved to {filename}")
@@ -49,7 +53,7 @@ if __name__ == "__main__":
     if find_icon_and_tap(SCREENSHOT_FILE, GAME_ICON_TEMPLATE):
         print("Waiting for game to open...")
         time.sleep(10)  # wait for game to load
-        screenshot("game_open.png")
+        screenshot(os.path.join(TEST_OUTPUT_DIR, "game_open.png"))
         print("Captured screenshot of the game.")
         close_game()
     print("Done.")
