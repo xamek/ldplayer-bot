@@ -1,2 +1,5 @@
-test-output/
+# Ignore all files inside test-output but keep the directory and .gitkeep
+test-output/*
+!test-output/.gitkeep
+
 __pycache__/starter_bot.cpython-314.pyc
