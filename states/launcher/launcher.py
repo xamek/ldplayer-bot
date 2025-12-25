@@ -10,7 +10,7 @@ import os
 
 
 LAUNCHER_STATE = "launcher"
-LAUNCHER_TEMPLATE = os.path.join(TEMPLATE_DIR, "launcher.png")
+LAUNCHER_TEMPLATE = os.path.join(os.path.dirname(__file__), "launcher.png")
 
 
 class TapGameIconAction(Action):
@@ -40,12 +40,11 @@ def get_launcher_actions():
     """Get all actions for the launcher state."""
     return [
         TapGameIconAction(),
-        WaitAfterLaunchAction(3),
     ]
 
 
 from state_machine import auto_register_state
 
 # Auto-register this state
-auto_register_state(LAUNCHER_STATE, LAUNCHER_TEMPLATE, get_launcher_actions(), threshold=0.8)
+auto_register_state(LAUNCHER_STATE, actions=get_launcher_actions(), threshold=0.8, patterns=[LAUNCHER_TEMPLATE])
 

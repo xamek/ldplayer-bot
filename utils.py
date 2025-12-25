@@ -49,7 +49,6 @@ def screenshot(filename):
         data = proc.stdout if isinstance(proc.stdout, (bytes, bytearray)) else proc.stdout.encode("utf-8")
         with open(filename, "wb") as f:
             f.write(data)
-        print(f"Screenshot saved to {filename}")
     else:
         print("Failed to capture screenshot")
 

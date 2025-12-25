@@ -1,0 +1,48 @@
+"""
+Game Loading State
+Detects when the game is in a loading state using multiple loading screen templates
+and text-based detection.
+"""
+
+import time
+import os
+from state_machine import Action, auto_register_state
+from utils import TEMPLATE_DIR
+
+LOADING_STATE = "game_loading"
+LOADING_TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
+LOADING_TEXT = "Loading"  # Text to match
+
+def get_loading_patterns():
+    """Get all loading screen template patterns."""
+    patterns = []
+    if os.path.exists(LOADING_TEMPLATES_DIR):
+        for filename in os.listdir(LOADING_TEMPLATES_DIR):
+            if filename.endswith('.png'):
+                patterns.append(os.path.join(LOADING_TEMPLATES_DIR, filename))
+    return patterns
+
+# Auto-register this state with all loading screen templates
+loading_patterns = get_loading_patterns()
+if loading_patterns:
+    auto_register_state(
+        LOADING_STATE, 
+        actions=[],  # No actions needed, state detection is enough
+        matcher_type="template",
+        patterns=loading_patterns,
+        threshold=0.8
+    )
+else:
+    print(f"WARNING: No loading templates found in {LOADING_TEMPLATES_DIR}")
+
+# Also register text-based detection for "Loading" text (no actions, already registered above)
+auto_register_state(
+    LOADING_STATE,
+    actions=[],  # Empty actions list - actions already registered above
+    matcher_type="text",
+    patterns=[LOADING_TEXT]
+)
+
+
+
+

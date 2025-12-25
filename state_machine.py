@@ -15,7 +15,7 @@ from dataclasses import dataclass
 @dataclass
 class StateDefinition:
     state: str
-    pattern: str  # Renamed from template_path to pattern to be generic
+    patterns: List[str]  # Renamed from pattern to patterns to be generic
     threshold: float
     actions: List['Action']
     matcher_type: str = "template"  # "template" or "text"
@@ -23,9 +23,32 @@ class StateDefinition:
 # Registry for auto-discovered states
 REGISTERED_STATES: List[StateDefinition] = []
 
-def auto_register_state(state: str, pattern: str, actions: List['Action'], threshold: float = 0.8, matcher_type: str = "template"):
-    """Auto-register a state definition."""
-    REGISTERED_STATES.append(StateDefinition(state, pattern, threshold, actions, matcher_type))
+def auto_register_state(state: str, pattern: Optional[str] = None, actions: List['Action'] = None, threshold: float = 0.8, matcher_type: str = "template", patterns: Optional[List[str]] = None):
+    """
+    Auto-register a state definition.
+    
+    Args:
+        state: State name
+        pattern: Single pattern string (legacy support)
+        actions: List of actions to execute
+        threshold: Match threshold
+        matcher_type: "template" or "text"
+        patterns: List of pattern strings (preferred)
+    """
+    if actions is None:
+        actions = []
+        
+    # Normalize to list
+    final_patterns = []
+    if patterns:
+        final_patterns.extend(patterns)
+    if pattern:
+        final_patterns.append(pattern)
+        
+    if not final_patterns:
+        print(f"WARNING: State {state} registered with no patterns!")
+        
+    REGISTERED_STATES.append(StateDefinition(state, final_patterns, threshold, actions, matcher_type))
 
 
 class Action(ABC):
@@ -59,8 +82,8 @@ class ScreenStateManager:
         self.current_state: Optional[str] = None
         self.previous_state: Optional[str] = None
         
-        # Maps state -> (pattern, threshold, matcher_type)
-        self.state_criteria: Dict[str, tuple] = {}
+        # Maps state -> List of (pattern, threshold, matcher_type)
+        self.state_criteria: Dict[str, List[tuple]] = {}
         
         # Maps state -> list of actions to execute when state is detected
         self.state_actions: Dict[str, List[Action]] = {}
@@ -89,6 +112,7 @@ class ScreenStateManager:
     def register_state(self, state: str, pattern: str, threshold: float = 0.8, matcher_type: str = "template") -> None:
         """
         Register a state with its matching criteria.
+        Can be called multiple times for the same state to add alternative patterns.
         
         Args:
             state: The screen state name
@@ -96,7 +120,10 @@ class ScreenStateManager:
             threshold: Match threshold (0.0 to 1.0) for templates
             matcher_type: "template" or "text"
         """
-        self.state_criteria[state] = (pattern, threshold, matcher_type)
+        if state not in self.state_criteria:
+            self.state_criteria[state] = []
+            
+        self.state_criteria[state].append((pattern, threshold, matcher_type))
         print(f"Registered state {state} [{matcher_type}] with pattern: {pattern}")
     
     def register_action(self, state: str, action: Action) -> None:
@@ -110,7 +137,11 @@ class ScreenStateManager:
         """Register all auto-discovery states from the global registry."""
         print(f"\n[SETUP] Found {len(REGISTERED_STATES)} registered states.")
         for state_def in REGISTERED_STATES:
-            self.register_state(state_def.state, state_def.pattern, threshold=state_def.threshold, matcher_type=state_def.matcher_type)
+            # Register each pattern for the state
+            for pattern in state_def.patterns:
+                self.register_state(state_def.state, pattern, threshold=state_def.threshold, matcher_type=state_def.matcher_type)
+            
+            # Register actions
             for action in state_def.actions:
                 self.register_action(state_def.state, action)
     
@@ -119,32 +150,37 @@ class ScreenStateManager:
         return self.screenshot_callback()
     
     def _match_state_criterion(self, screenshot_path: str, state: str) -> bool:
-        """Check if a screenshot matches a state's criteria."""
+        """Check if a screenshot matches any of the state's criteria."""
         if state not in self.state_criteria:
             return False
         
-        pattern, threshold, matcher_type = self.state_criteria[state]
+        criteria_list = self.state_criteria[state]
         
-        if matcher_type == "template":
-            if not self.template_matcher:
-                print("ERROR: No template matcher set!")
-                return False
-            try:
-                return self.template_matcher(screenshot_path, pattern, threshold)
-            except Exception as e:
-                print(f"Error matching template for {state}: {e}")
-                return False
-                
-        elif matcher_type == "text":
-            if not self.text_extractor:
-                print("ERROR: No text extractor set!")
-                return False
-            try:
-                extracted_text = self.text_extractor(screenshot_path)
-                return pattern.lower() in extracted_text.lower()
-            except Exception as e:
-                print(f"Error extracting text for {state}: {e}")
-                return False
+        for pattern, threshold, matcher_type in criteria_list:
+            matched = False
+            if matcher_type == "template":
+                if not self.template_matcher:
+                    print("ERROR: No template matcher set!")
+                    continue
+                try:
+                    matched = self.template_matcher(screenshot_path, pattern, threshold)
+                except Exception as e:
+                    print(f"Error matching template for {state}: {e}")
+                    continue
+                    
+            elif matcher_type == "text":
+                if not self.text_extractor:
+                    print("ERROR: No text extractor set!")
+                    continue
+                try:
+                    extracted_text = self.text_extractor(screenshot_path)
+                    matched = pattern.lower() in extracted_text.lower()
+                except Exception as e:
+                    print(f"Error extracting text for {state}: {e}")
+                    continue
+            
+            if matched:
+                return True
         
         return False
     
@@ -192,26 +228,24 @@ class ScreenStateManager:
             print(f"ERROR: Failed to clear unknown_states folder: {e}")
     
     
+    
     def _execute_state_actions(self, state: str, iteration: int = 0) -> None:
         """Execute all actions registered for a state."""
         if state not in self.state_actions:
             return
         
         iter_str = f" [ITER {iteration}]" if iteration > 0 else ""
-        print(f"\n=== STATE: {state}{iter_str} ===")
-        print(f"Executing {len(self.state_actions[state])} action(s)...")
+        print(f"=== STATE: {state}{iter_str} ===")
         
         for action in self.state_actions[state]:
             try:
-                print(f"  > {action.name}...", end=" ")
                 result = action.execute()
-                print("✓" if result else "✗")
+                status = "✓" if result else "✗"
+                print(f"  > {action.name} {status}")
                 if not result:
                     print(f"    Warning: Action '{action.name}' returned False")
             except Exception as e:
-                print(f"✗ ERROR: {e}")
-        
-        print()
+                print(f"  > {action.name} ✗ ERROR: {e}")
     
     def run(self, max_iterations: Optional[int] = None) -> None:
         """
@@ -250,6 +284,7 @@ class ScreenStateManager:
                 
                 # Take screenshot
                 screenshot_path = self._take_screenshot()
+                print(f"[ITER {iteration}] Screenshot taken")
                 
                 # Detect state
                 detected_state = self._detect_state(screenshot_path)
@@ -258,7 +293,7 @@ class ScreenStateManager:
                     # State detected
                     if detected_state != self.current_state:
                         # State changed
-                        print(f"[ITER {iteration}] Template matched: {detected_state}")
+                        print(f"State matched: {detected_state}")
                         self.previous_state = self.current_state
                         self.current_state = detected_state
                         state_hold_frames = 1
@@ -268,6 +303,7 @@ class ScreenStateManager:
                     else:
                         # Same state
                         state_hold_frames += 1
+                        print(f"State unchanged: {detected_state}")
                 else:
                     # No state detected
                     if self.current_state is not None:

@@ -1,6 +1,6 @@
 """
-Game Main Screen State
-Detects the main game screen when it's fully loaded.
+Splash Screen State
+Detects the splash screen when it's fully loaded.
 """
 
 from state_machine import Action
@@ -8,8 +8,8 @@ from utils import screenshot, SCREENSHOT_FILE, close_game, TEMPLATE_DIR
 import os
 
 
-GAME_MAIN_STATE = "game_main"
-GAME_MAIN_TEMPLATE = os.path.join(TEMPLATE_DIR, "game_main.png")
+SPLASH_SCREEN_STATE = "splash_screen"
+SPLASH_SCREEN_TEMPLATE = os.path.join(os.path.dirname(__file__), "splash_screen.png")
 
 
 class TakeScreenshotAction(Action):
@@ -47,16 +47,15 @@ class CloseGameAction(Action):
         return True
 
 
-def get_game_main_actions():
-    """Get all actions for the game main state."""
+def get_splash_screen_actions():
+    """Get all actions for the splash screen state."""
     return [
-        TakeScreenshotAction(),
-        PrintGameReadyAction(),
         CloseGameAction(),
     ]
 
 from state_machine import auto_register_state
 # Auto-register this state
-if GAME_MAIN_TEMPLATE:
-    auto_register_state(GAME_MAIN_STATE, GAME_MAIN_TEMPLATE, get_game_main_actions(), threshold=0.8)
+if SPLASH_SCREEN_TEMPLATE:
+    auto_register_state(SPLASH_SCREEN_STATE, actions=get_splash_screen_actions(), threshold=0.8, patterns=[SPLASH_SCREEN_TEMPLATE])
+
 
