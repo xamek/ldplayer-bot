@@ -4,12 +4,13 @@ Detects the app launcher and launches the game.
 """
 
 from state_machine import ScreenState, Action
-from utils import find_icon_and_tap, SCREENSHOT_FILE, GAME_ICON_TEMPLATE
+from utils import find_icon_and_tap, SCREENSHOT_FILE, TEMPLATE_DIR
 import time
+import os
 
 
 LAUNCHER_STATE = ScreenState.LAUNCHER
-LAUNCHER_TEMPLATE = GAME_ICON_TEMPLATE
+LAUNCHER_TEMPLATE = os.path.join(TEMPLATE_DIR, "launcher.png")
 
 
 class TapGameIconAction(Action):
@@ -19,7 +20,7 @@ class TapGameIconAction(Action):
         super().__init__("tap_game_icon")
     
     def execute(self) -> bool:
-        return find_icon_and_tap(SCREENSHOT_FILE, GAME_ICON_TEMPLATE, threshold=0.8)
+        return find_icon_and_tap(SCREENSHOT_FILE, LAUNCHER_TEMPLATE, threshold=0.8)
 
 
 class WaitAfterLaunchAction(Action):

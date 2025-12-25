@@ -5,10 +5,8 @@ Core functions for ADB operations, screenshots, and template matching.
 
 import os
 import subprocess
-import time
 from pathlib import Path
 import cv2
-import numpy as np
 
 
 # Configuration constants
@@ -16,8 +14,6 @@ TEST_OUTPUT_DIR = "test-output"
 ADB_PATH = "adb"
 SCREENSHOT_FILE = os.path.join(TEST_OUTPUT_DIR, "screen.png")
 TEMPLATE_DIR = "templates"
-GAME_ICON_TEMPLATE = os.path.join(TEMPLATE_DIR, "game_icon.png")
-GAME_OPEN_TEMPLATE = os.path.join(TEMPLATE_DIR, "game_open.png")
 APP_PACKAGE = "com.klab.captain283.global"
 
 
@@ -87,34 +83,6 @@ def template_present(screenshot_file, template_file, threshold=0.8):
         return False
     max_val = res[0]
     return max_val >= threshold
-
-
-def wait_for_game_open(timeout=60, poll_interval=2):
-    """Poll until the game main screen appears or timeout.
-
-    Returns True if the game is detected open, False on timeout.
-    """
-    start = time.time()
-    while time.time() - start < timeout:
-        screenshot(SCREENSHOT_FILE)
-        if Path(GAME_OPEN_TEMPLATE).exists() and template_present(SCREENSHOT_FILE, GAME_OPEN_TEMPLATE):
-            return True
-        try:
-            prev = cv2.imread(os.path.join(TEST_OUTPUT_DIR, "screen.png"))
-            curr = cv2.imread(SCREENSHOT_FILE)
-            if prev is not None and curr is not None and prev.shape == curr.shape:
-                diff = cv2.absdiff(prev, curr)
-                gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
-                _, thresh = cv2.threshold(gray, 25, 255, cv2.THRESH_BINARY)
-                non_zero = cv2.countNonZero(thresh)
-                total = thresh.shape[0] * thresh.shape[1]
-                ratio = non_zero / float(total)
-                if ratio > 0.02:
-                    return True
-        except Exception:
-            pass
-        time.sleep(poll_interval)
-    return False
 
 
 def close_game():
