@@ -4,7 +4,7 @@ Combines bot utilities with state machine to automate game tasks.
 """
 
 from state_machine import ScreenStateManager
-from utils import screenshot, template_present, extract_text, SCREENSHOT_FILE
+from utils import screenshot, template_present, extract_text, SCREENSHOT_FILE, is_ldplayer_running
 
 # Import states package to trigger registration
 import states
@@ -52,6 +52,16 @@ def run_bot(max_iterations=None):
     Args:
         max_iterations: Number of iterations to run (None = infinite, Ctrl+C to stop)
     """
+    
+    # Check if LDPlayer is running
+    print("Checking if LDPlayer is running...")
+    if not is_ldplayer_running():
+        print("=" * 50)
+        print("ERROR: LDPlayer is not running!")
+        print("Please start LDPlayer before running the bot.")
+        print("=" * 50)
+        return
+    print("✓ LDPlayer is running\n")
     
     # Setup
     sm = setup_bot()

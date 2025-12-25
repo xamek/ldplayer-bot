@@ -103,6 +103,30 @@ def template_present(screenshot_file, template_file, threshold=0.8):
     return max_val >= threshold
 
 
+def is_ldplayer_running():
+    """Check if LDPlayer is running by looking for dnplayer.exe process.
+    
+    Returns:
+        bool: True if LDPlayer is running, False otherwise
+    """
+    try:
+        # Use tasklist command on Windows to check for dnplayer.exe
+        result = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq dnplayer.exe"],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        
+        # If dnplayer.exe is found, it will appear in the output
+        if result.returncode == 0 and "dnplayer.exe" in result.stdout:
+            return True
+        return False
+    except Exception as e:
+        print(f"Error checking if LDPlayer is running: {e}")
+        return False
+
+
 def close_game():
     """Close the game by force-stopping the app package if set, otherwise send HOME."""
     if APP_PACKAGE:
