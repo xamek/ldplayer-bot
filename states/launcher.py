@@ -3,13 +3,13 @@ Launcher Screen State
 Detects the app launcher and launches the game.
 """
 
-from state_machine import ScreenState, Action
+from state_machine import Action
 from utils import find_icon_and_tap, SCREENSHOT_FILE, TEMPLATE_DIR
 import time
 import os
 
 
-LAUNCHER_STATE = ScreenState.LAUNCHER
+LAUNCHER_STATE = "launcher"
 LAUNCHER_TEMPLATE = os.path.join(TEMPLATE_DIR, "launcher.png")
 
 

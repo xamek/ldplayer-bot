@@ -3,8 +3,8 @@ LDPlayer Bot - Main Bot Implementation
 Combines bot utilities with state machine to automate game tasks.
 """
 
-from state_machine import ScreenStateManager, REGISTERED_STATES
-from utils import screenshot, template_present, SCREENSHOT_FILE
+from state_machine import ScreenStateManager
+from utils import screenshot, template_present, extract_text, SCREENSHOT_FILE
 
 # Import states package to trigger registration
 import states
@@ -33,15 +33,12 @@ def setup_bot() -> ScreenStateManager:
         poll_interval=2.0  # Check every 2 seconds
     )
     
-    # Set the template matching function
+    # Set the matching functions
     sm.set_template_matcher(template_matcher)
+    sm.set_text_extractor(extract_text)
     
     # Register all auto-discovered states
-    print(f"\n[SETUP] Found {len(REGISTERED_STATES)} registered states.")
-    for state_def in REGISTERED_STATES:
-        sm.register_state(state_def.state, state_def.template_path, threshold=state_def.threshold)
-        for action in state_def.actions:
-            sm.register_action(state_def.state, action)
+    sm.load_registered_states()
     
     print("\n[SETUP] Setup complete!\n")
     return sm

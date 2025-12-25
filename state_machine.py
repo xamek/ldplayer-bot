@@ -4,7 +4,6 @@ Loop-based state machine that continuously takes screenshots, matches templates,
 and executes actions when states are detected.
 """
 
-from enum import Enum
 from abc import ABC, abstractmethod
 from typing import Optional, Callable, Dict, List
 import time
@@ -15,25 +14,18 @@ from dataclasses import dataclass
 
 @dataclass
 class StateDefinition:
-    state: 'ScreenState'
-    template_path: str
+    state: str
+    pattern: str  # Renamed from template_path to pattern to be generic
     threshold: float
     actions: List['Action']
+    matcher_type: str = "template"  # "template" or "text"
 
 # Registry for auto-discovered states
 REGISTERED_STATES: List[StateDefinition] = []
 
-def auto_register_state(state: 'ScreenState', template_path: str, actions: List['Action'], threshold: float = 0.8):
+def auto_register_state(state: str, pattern: str, actions: List['Action'], threshold: float = 0.8, matcher_type: str = "template"):
     """Auto-register a state definition."""
-    REGISTERED_STATES.append(StateDefinition(state, template_path, threshold, actions))
-
-
-
-class ScreenState(Enum):
-    """Enum for all possible screen states in the bot."""
-    LAUNCHER = "launcher"
-    GAME_MAIN = "game_main"
-    # Add more states as needed
+    REGISTERED_STATES.append(StateDefinition(state, pattern, threshold, actions, matcher_type))
 
 
 class Action(ABC):
@@ -64,17 +56,18 @@ class ScreenStateManager:
         """
         self.screenshot_callback = screenshot_callback
         self.poll_interval = poll_interval
-        self.current_state: Optional[ScreenState] = None
-        self.previous_state: Optional[ScreenState] = None
+        self.current_state: Optional[str] = None
+        self.previous_state: Optional[str] = None
         
-        # Maps state -> (template_path, threshold)
-        self.state_templates: Dict[ScreenState, tuple] = {}
+        # Maps state -> (pattern, threshold, matcher_type)
+        self.state_criteria: Dict[str, tuple] = {}
         
         # Maps state -> list of actions to execute when state is detected
-        self.state_actions: Dict[ScreenState, List[Action]] = {}
+        self.state_actions: Dict[str, List[Action]] = {}
         
-        # Template matching function
+        # Helper functions
         self.template_matcher: Optional[Callable[[str, str, float], bool]] = None
+        self.text_extractor: Optional[Callable[[str], str]] = None
         
         # Running state
         self.is_running = False
@@ -86,57 +79,79 @@ class ScreenStateManager:
         self.unmatched_count = 0
     
     def set_template_matcher(self, matcher_func: Callable[[str, str, float], bool]) -> None:
-        """
-        Set the template matching function.
-        
-        Args:
-            matcher_func: Function(screenshot_path, template_path, threshold) -> bool
-        """
+        """Set the template matching function."""
         self.template_matcher = matcher_func
+
+    def set_text_extractor(self, extractor_func: Callable[[str], str]) -> None:
+        """Set the text extraction function."""
+        self.text_extractor = extractor_func
     
-    def register_state(self, state: ScreenState, template_path: str, threshold: float = 0.8) -> None:
+    def register_state(self, state: str, pattern: str, threshold: float = 0.8, matcher_type: str = "template") -> None:
         """
-        Register a state with its template.
+        Register a state with its matching criteria.
         
         Args:
-            state: The screen state
-            template_path: Path to the template image
-            threshold: Match threshold (0.0 to 1.0)
+            state: The screen state name
+            pattern: Template path or text to match
+            threshold: Match threshold (0.0 to 1.0) for templates
+            matcher_type: "template" or "text"
         """
-        self.state_templates[state] = (template_path, threshold)
-        print(f"Registered state {state.name} with template: {template_path} (threshold: {threshold})")
+        self.state_criteria[state] = (pattern, threshold, matcher_type)
+        print(f"Registered state {state} [{matcher_type}] with pattern: {pattern}")
     
-    def register_action(self, state: ScreenState, action: Action) -> None:
+    def register_action(self, state: str, action: Action) -> None:
         """Register an action to execute when a state is detected."""
         if state not in self.state_actions:
             self.state_actions[state] = []
         self.state_actions[state].append(action)
-        print(f"Registered action '{action.name}' for state {state.name}")
+        print(f"Registered action '{action.name}' for state {state}")
+
+    def load_registered_states(self) -> None:
+        """Register all auto-discovery states from the global registry."""
+        print(f"\n[SETUP] Found {len(REGISTERED_STATES)} registered states.")
+        for state_def in REGISTERED_STATES:
+            self.register_state(state_def.state, state_def.pattern, threshold=state_def.threshold, matcher_type=state_def.matcher_type)
+            for action in state_def.actions:
+                self.register_action(state_def.state, action)
     
     def _take_screenshot(self) -> str:
         """Take a screenshot using the callback function."""
         return self.screenshot_callback()
     
-    def _match_template(self, screenshot_path: str, state: ScreenState) -> bool:
-        """Check if a screenshot matches a state's template."""
-        if not self.template_matcher:
-            print("ERROR: No template matcher set!")
+    def _match_state_criterion(self, screenshot_path: str, state: str) -> bool:
+        """Check if a screenshot matches a state's criteria."""
+        if state not in self.state_criteria:
             return False
         
-        if state not in self.state_templates:
-            return False
+        pattern, threshold, matcher_type = self.state_criteria[state]
         
-        template_path, threshold = self.state_templates[state]
-        try:
-            return self.template_matcher(screenshot_path, template_path, threshold)
-        except Exception as e:
-            print(f"Error matching template for {state.name}: {e}")
-            return False
+        if matcher_type == "template":
+            if not self.template_matcher:
+                print("ERROR: No template matcher set!")
+                return False
+            try:
+                return self.template_matcher(screenshot_path, pattern, threshold)
+            except Exception as e:
+                print(f"Error matching template for {state}: {e}")
+                return False
+                
+        elif matcher_type == "text":
+            if not self.text_extractor:
+                print("ERROR: No text extractor set!")
+                return False
+            try:
+                extracted_text = self.text_extractor(screenshot_path)
+                return pattern.lower() in extracted_text.lower()
+            except Exception as e:
+                print(f"Error extracting text for {state}: {e}")
+                return False
+        
+        return False
     
-    def _detect_state(self, screenshot_path: str) -> Optional[ScreenState]:
+    def _detect_state(self, screenshot_path: str) -> Optional[str]:
         """Detect which state the current screenshot matches."""
-        for state in self.state_templates.keys():
-            if self._match_template(screenshot_path, state):
+        for state in self.state_criteria.keys():
+            if self._match_state_criterion(screenshot_path, state):
                 return state
         return None
     
@@ -177,13 +192,13 @@ class ScreenStateManager:
             print(f"ERROR: Failed to clear unknown_states folder: {e}")
     
     
-    def _execute_state_actions(self, state: ScreenState, iteration: int = 0) -> None:
+    def _execute_state_actions(self, state: str, iteration: int = 0) -> None:
         """Execute all actions registered for a state."""
         if state not in self.state_actions:
             return
         
         iter_str = f" [ITER {iteration}]" if iteration > 0 else ""
-        print(f"\n=== STATE: {state.name}{iter_str} ===")
+        print(f"\n=== STATE: {state}{iter_str} ===")
         print(f"Executing {len(self.state_actions[state])} action(s)...")
         
         for action in self.state_actions[state]:
@@ -211,7 +226,7 @@ class ScreenStateManager:
             print("ERROR: Template matcher not set. Use set_template_matcher() first.")
             return
         
-        if not self.state_templates:
+        if not self.state_criteria:
             print("ERROR: No states registered. Use register_state() first.")
             return
         
@@ -243,7 +258,7 @@ class ScreenStateManager:
                     # State detected
                     if detected_state != self.current_state:
                         # State changed
-                        print(f"[ITER {iteration}] Template matched: {detected_state.name}")
+                        print(f"[ITER {iteration}] Template matched: {detected_state}")
                         self.previous_state = self.current_state
                         self.current_state = detected_state
                         state_hold_frames = 1
@@ -256,7 +271,7 @@ class ScreenStateManager:
                 else:
                     # No state detected
                     if self.current_state is not None:
-                        print(f"[ITER {iteration}] No template matched (was in {self.current_state.name})")
+                        print(f"[ITER {iteration}] No template matched (was in {self.current_state})")
                         self._save_unknown_state(screenshot_path)
                         self.previous_state = self.current_state
                         self.current_state = None
@@ -280,14 +295,14 @@ class ScreenStateManager:
         self.is_running = False
         print("Stopping state machine...")
     
-    def get_current_state(self) -> Optional[ScreenState]:
+    def get_current_state(self) -> Optional[str]:
         """Get the current detected state."""
         return self.current_state
     
     def print_state_info(self) -> None:
         """Print current state information."""
         print(f"\n--- State Info ---")
-        print(f"Current: {self.current_state.name if self.current_state else 'None'}")
-        print(f"Previous: {self.previous_state.name if self.previous_state else 'None'}")
-        print(f"Registered States: {[s.name for s in self.state_templates.keys()]}")
+        print(f"Current: {self.current_state if self.current_state else 'None'}")
+        print(f"Previous: {self.previous_state if self.previous_state else 'None'}")
+        print(f"Registered States: {[s for s in self.state_criteria.keys()]}")
         print(f"-------------------\n")

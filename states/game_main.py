@@ -3,12 +3,12 @@ Game Main Screen State
 Detects the main game screen when it's fully loaded.
 """
 
-from state_machine import ScreenState, Action
+from state_machine import Action
 from utils import screenshot, SCREENSHOT_FILE, close_game, TEMPLATE_DIR
 import os
 
 
-GAME_MAIN_STATE = ScreenState.GAME_MAIN
+GAME_MAIN_STATE = "game_main"
 GAME_MAIN_TEMPLATE = os.path.join(TEMPLATE_DIR, "game_main.png")
 
 

@@ -7,6 +7,15 @@ import os
 import subprocess
 from pathlib import Path
 import cv2
+import pytesseract
+import time
+
+# Set tesseract path (standard install location on Windows)
+# If it's in PATH, this might not be needed, but safe to have reference.
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+
+# Configuration constants
 
 
 # Configuration constants
@@ -103,3 +112,30 @@ def close_game():
         return
     run_adb(["shell", "input", "keyevent", "3"])
     print("Closed the game (sent HOME).")
+
+
+def extract_text(image_path):
+    """Extract text from an image using Tesseract OCR."""
+    if not Path(image_path).exists():
+        return ""
+    try:
+        img = cv2.imread(str(image_path))
+        if img is None:
+            return ""
+        
+        # Preprocessing for better OCR
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # Simple thresholding to make text stand out
+        # adjust 127/255 as needed or use adaptive thresholding
+        _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+        
+        text = pytesseract.image_to_string(thresh)
+        
+        # Debug: Print extracted text
+        clean_text = text.strip().replace('\n', ' ') 
+        # print(f"[OCR] Extracted: '{clean_text[:50]}...' (Len: {len(text)})")
+            
+        return text
+    except Exception as e:
+        print(f"OCR Error: {e}")
+        return ""
