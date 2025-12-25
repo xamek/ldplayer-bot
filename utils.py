@@ -59,20 +59,30 @@ def match_template(screenshot_file, template_file):
     return max_val, max_loc, (w, h)
 
 
-def find_icon_and_tap(screenshot_file, template_file, threshold=0.8):
-    """Find the template in screenshot and tap its center via ADB."""
+def tap_point(x, y):
+    """Tap a specific point on the screen."""
+    run_adb(["shell", "input", "tap", str(x), str(y)])
+    print(f"Tapped at ({x}, {y})")
+
+
+def get_template_center(screenshot_file, template_file, threshold=0.8):
+    """Return center (x, y) if template is found, else None."""
     res = match_template(screenshot_file, template_file)
     if not res:
-        print("Game icon not found (no template or screenshot).")
-        return False
+        return None
     max_val, (x, y), (w, h) = res[0], res[1], res[2]
     if max_val >= threshold:
-        center_x = int(x + w // 2)
-        center_y = int(y + h // 2)
-        run_adb(["shell", "input", "tap", str(center_x), str(center_y)])
-        print(f"Tapped game icon at ({center_x}, {center_y})")
+        return int(x + w // 2), int(y + h // 2)
+    return None
+
+
+def find_icon_and_tap(screenshot_file, template_file, threshold=0.8):
+    """Find the template in screenshot and tap its center via ADB."""
+    center = get_template_center(screenshot_file, template_file, threshold)
+    if center:
+        tap_point(center[0], center[1])
         return True
-    print("Game icon not found (below threshold).")
+    print("Game icon not found.")
     return False
 
 
