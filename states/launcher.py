@@ -42,3 +42,10 @@ def get_launcher_actions():
         TapGameIconAction(),
         WaitAfterLaunchAction(3),
     ]
+
+
+from state_machine import auto_register_state
+
+# Auto-register this state
+auto_register_state(LAUNCHER_STATE, LAUNCHER_TEMPLATE, get_launcher_actions(), threshold=0.8)
+

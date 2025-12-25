@@ -54,3 +54,9 @@ def get_game_main_actions():
         PrintGameReadyAction(),
         CloseGameAction(),
     ]
+
+from state_machine import auto_register_state
+# Auto-register this state
+if GAME_MAIN_TEMPLATE:
+    auto_register_state(GAME_MAIN_STATE, GAME_MAIN_TEMPLATE, get_game_main_actions(), threshold=0.8)
+

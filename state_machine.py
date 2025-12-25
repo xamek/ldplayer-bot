@@ -11,16 +11,28 @@ import time
 import shutil
 from datetime import datetime
 from pathlib import Path
+from dataclasses import dataclass
+
+@dataclass
+class StateDefinition:
+    state: 'ScreenState'
+    template_path: str
+    threshold: float
+    actions: List['Action']
+
+# Registry for auto-discovered states
+REGISTERED_STATES: List[StateDefinition] = []
+
+def auto_register_state(state: 'ScreenState', template_path: str, actions: List['Action'], threshold: float = 0.8):
+    """Auto-register a state definition."""
+    REGISTERED_STATES.append(StateDefinition(state, template_path, threshold, actions))
+
 
 
 class ScreenState(Enum):
     """Enum for all possible screen states in the bot."""
     LAUNCHER = "launcher"
-    GAME_LOADING = "game_loading"
     GAME_MAIN = "game_main"
-    GAME_MENU = "game_menu"
-    GAME_BATTLE = "game_battle"
-    GAME_RESULTS = "game_results"
     # Add more states as needed
 
 

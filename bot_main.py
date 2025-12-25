@@ -3,12 +3,11 @@ LDPlayer Bot - Main Bot Implementation
 Combines bot utilities with state machine to automate game tasks.
 """
 
-from state_machine import ScreenStateManager
+from state_machine import ScreenStateManager, REGISTERED_STATES
 from utils import screenshot, template_present, SCREENSHOT_FILE
 
-# Import states and their actions
-from states.launcher import LAUNCHER_STATE, LAUNCHER_TEMPLATE, get_launcher_actions
-from states.game_main import GAME_MAIN_STATE, GAME_MAIN_TEMPLATE, get_game_main_actions
+# Import states package to trigger registration
+import states
 
 
 def template_matcher(screenshot_path: str, template_path: str, threshold: float) -> bool:
@@ -37,21 +36,16 @@ def setup_bot() -> ScreenStateManager:
     # Set the template matching function
     sm.set_template_matcher(template_matcher)
     
-    # Register LAUNCHER state
-    print("\n[SETUP] Registering LAUNCHER state...")
-    sm.register_state(LAUNCHER_STATE, LAUNCHER_TEMPLATE, threshold=0.8)
-    for action in get_launcher_actions():
-        sm.register_action(LAUNCHER_STATE, action)
-    
-    # Register GAME_MAIN state (if template exists)
-    print("[SETUP] Registering GAME_MAIN state...")
-    if GAME_MAIN_TEMPLATE:
-        sm.register_state(GAME_MAIN_STATE, GAME_MAIN_TEMPLATE, threshold=0.8)
-    for action in get_game_main_actions():
-        sm.register_action(GAME_MAIN_STATE, action)
+    # Register all auto-discovered states
+    print(f"\n[SETUP] Found {len(REGISTERED_STATES)} registered states.")
+    for state_def in REGISTERED_STATES:
+        sm.register_state(state_def.state, state_def.template_path, threshold=state_def.threshold)
+        for action in state_def.actions:
+            sm.register_action(state_def.state, action)
     
     print("\n[SETUP] Setup complete!\n")
     return sm
+
 
 
 def run_bot(max_iterations=None):

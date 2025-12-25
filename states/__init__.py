@@ -1,12 +1,11 @@
 """
 Bot states module
-Each state file contains its template path and associated actions.
+Importing this package triggers registration of all states located in submodules.
 """
 
-from .launcher import LAUNCHER_STATE, LAUNCHER_TEMPLATE
-from .game_main import GAME_MAIN_STATE, GAME_MAIN_TEMPLATE
+# Import state modules to trigger self-registration
+from . import launcher
+from . import game_main
 
-__all__ = [
-    'LAUNCHER_STATE', 'LAUNCHER_TEMPLATE',
-    'GAME_MAIN_STATE', 'GAME_MAIN_TEMPLATE',
-]
+__all__ = ['launcher', 'game_main']
+
