@@ -2,4 +2,8 @@
 test-output/*
 !test-output/.gitkeep
 
+# Ignore all files inside unknown_states but keep the directory and .gitkeep
+unknown_states/*
+!unknown_states/.gitkeep
+
 __pycache__/starter_bot.cpython-314.pyc
