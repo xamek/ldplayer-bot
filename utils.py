@@ -22,7 +22,6 @@ import time
 TEST_OUTPUT_DIR = "test-output"
 ADB_PATH = "adb"
 SCREENSHOT_FILE = os.path.join(TEST_OUTPUT_DIR, "screen.png")
-TEMPLATE_DIR = "templates"
 APP_PACKAGE = "com.klab.captain283.global"
 
 
@@ -185,3 +184,46 @@ def extract_text(image_path):
     except Exception as e:
         print(f"OCR Error: {e}")
         return ""
+
+
+def is_solid_color(image_path, color_name, tolerance=30, std_dev_threshold=10):
+    """
+    Check if the image is a solid color (black or white).
+    
+    Args:
+        image_path: Path to the image file
+        color_name: "white" or "black"
+        tolerance: How close the mean must be to 0 or 255
+        std_dev_threshold: Maximum standard deviation allowed (lower means more uniform)
+    """
+    if not Path(image_path).exists():
+        return False
+    
+    try:
+        img = cv2.imread(str(image_path))
+        if img is None:
+            return False
+            
+        # Convert to grayscale
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Calculate mean and standard deviation
+        mean, std_dev = cv2.meanStdDev(gray)
+        mean_val = mean[0][0]
+        std_val = std_dev[0][0]
+        
+        # Check if the image is uniform enough
+        if std_val > std_dev_threshold:
+            return False
+            
+        if color_name.lower() == "white":
+            # White is 255
+            return mean_val >= (255 - tolerance)
+        elif color_name.lower() == "black":
+            # Black is 0
+            return mean_val <= tolerance
+            
+        return False
+    except Exception as e:
+        print(f"Error in is_solid_color: {e}")
+        return False

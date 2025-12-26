@@ -7,7 +7,8 @@ Importing this package triggers registration of all states located in submodules
 from . import launcher
 from . import splash_screen
 from . import game_loading
+from . import main_menu
 
-__all__ = ['launcher', 'splash_screen', 'game_loading']
+__all__ = ['launcher', 'splash_screen', 'game_loading', 'main_menu']
 
 

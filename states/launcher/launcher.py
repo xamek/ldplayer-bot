@@ -3,14 +3,14 @@ Launcher Screen State
 Detects the app launcher and launches the game.
 """
 
-from state_machine import Action
-from utils import find_icon_and_tap, SCREENSHOT_FILE, TEMPLATE_DIR
+from state_machine import Action, auto_register_state, get_templates_from_dir
+from utils import find_icon_and_tap, SCREENSHOT_FILE
 import time
 import os
 
 
 LAUNCHER_STATE = "launcher"
-LAUNCHER_TEMPLATE = os.path.join(os.path.dirname(__file__), "launcher.png")
+LAUNCHER_TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
 
 class TapGameIconAction(Action):
@@ -20,20 +20,11 @@ class TapGameIconAction(Action):
         super().__init__("tap_game_icon")
     
     def execute(self) -> bool:
-        return find_icon_and_tap(SCREENSHOT_FILE, LAUNCHER_TEMPLATE, threshold=0.8)
-
-
-class WaitAfterLaunchAction(Action):
-    """Wait for game to start loading after tapping icon."""
-    
-    def __init__(self, duration: float = 3):
-        super().__init__(f"wait_after_launch")
-        self.duration = duration
-    
-    def execute(self) -> bool:
-        print(f"Waiting {self.duration}s for game to load...")
-        time.sleep(self.duration)
-        return True
+        # Use the first available template for the tap action (main icon)
+        templates = get_templates_from_dir(LAUNCHER_TEMPLATES_DIR)
+        if not templates:
+            return False
+        return find_icon_and_tap(SCREENSHOT_FILE, templates[0], threshold=0.8)
 
 
 def get_launcher_actions():
@@ -43,8 +34,13 @@ def get_launcher_actions():
     ]
 
 
-from state_machine import auto_register_state
-
-# Auto-register this state
-auto_register_state(LAUNCHER_STATE, actions=get_launcher_actions(), threshold=0.8, patterns=[LAUNCHER_TEMPLATE])
+# Auto-register this state with all templates in the folder
+launcher_patterns = get_templates_from_dir(LAUNCHER_TEMPLATES_DIR)
+if launcher_patterns:
+    auto_register_state(
+        LAUNCHER_STATE, 
+        actions=get_launcher_actions(), 
+        threshold=0.8, 
+        patterns=launcher_patterns
+    )
 

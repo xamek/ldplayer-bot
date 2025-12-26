@@ -3,13 +3,13 @@ Splash Screen State
 Detects the splash screen when it's fully loaded.
 """
 
-from state_machine import Action
-from utils import screenshot, SCREENSHOT_FILE, tap_center, TEMPLATE_DIR
+from state_machine import Action, auto_register_state, get_templates_from_dir
+from utils import screenshot, SCREENSHOT_FILE, tap_center
 import os
 
 
 SPLASH_SCREEN_STATE = "splash_screen"
-SPLASH_SCREEN_TEMPLATE = os.path.join(os.path.dirname(__file__), "splash_screen.png")
+SPLASH_SCREEN_TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
 
 class TakeScreenshotAction(Action):
@@ -52,9 +52,14 @@ def get_splash_screen_actions():
         TapCenterAction(),
     ]
 
-from state_machine import auto_register_state
-# Auto-register this state
-if SPLASH_SCREEN_TEMPLATE:
-    auto_register_state(SPLASH_SCREEN_STATE, actions=get_splash_screen_actions(), threshold=0.8, patterns=[SPLASH_SCREEN_TEMPLATE])
+# Auto-register this state with all templates in the folder
+splash_patterns = get_templates_from_dir(SPLASH_SCREEN_TEMPLATES_DIR)
+if splash_patterns:
+    auto_register_state(
+        SPLASH_SCREEN_STATE, 
+        actions=get_splash_screen_actions(), 
+        threshold=0.8, 
+        patterns=splash_patterns
+    )
 
 

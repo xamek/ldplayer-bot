@@ -23,6 +23,18 @@ class StateDefinition:
 # Registry for auto-discovered states
 REGISTERED_STATES: List[StateDefinition] = []
 
+def get_templates_from_dir(directory_path: str) -> List[str]:
+    """Get all .png files from a directory as absolute paths."""
+    from pathlib import Path
+    import os
+    
+    patterns = []
+    if os.path.exists(directory_path):
+        for filename in os.listdir(directory_path):
+            if filename.endswith('.png'):
+                patterns.append(os.path.join(directory_path, filename))
+    return patterns
+
 def auto_register_state(state: str, pattern: Optional[str] = None, actions: List['Action'] = None, threshold: float = 0.8, matcher_type: str = "template", patterns: Optional[List[str]] = None):
     """
     Auto-register a state definition.
@@ -91,6 +103,7 @@ class ScreenStateManager:
         # Helper functions
         self.template_matcher: Optional[Callable[[str, str, float], bool]] = None
         self.text_extractor: Optional[Callable[[str], str]] = None
+        self.solid_color_matcher: Optional[Callable[[str, str, float], bool]] = None
         
         # Running state
         self.is_running = False
@@ -108,6 +121,10 @@ class ScreenStateManager:
     def set_text_extractor(self, extractor_func: Callable[[str], str]) -> None:
         """Set the text extraction function."""
         self.text_extractor = extractor_func
+
+    def set_solid_color_matcher(self, matcher_func: Callable[[str, str, float], bool]) -> None:
+        """Set the solid color matching function."""
+        self.solid_color_matcher = matcher_func
     
     def register_state(self, state: str, pattern: str, threshold: float = 0.8, matcher_type: str = "template") -> None:
         """
@@ -149,10 +166,10 @@ class ScreenStateManager:
         """Take a screenshot using the callback function."""
         return self.screenshot_callback()
     
-    def _match_state_criterion(self, screenshot_path: str, state: str) -> bool:
+    def _match_state_criterion(self, screenshot_path: str, state: str) -> tuple[bool, Optional[str], Optional[str]]:
         """Check if a screenshot matches any of the state's criteria."""
         if state not in self.state_criteria:
-            return False
+            return False, None, None
         
         criteria_list = self.state_criteria[state]
         
@@ -179,17 +196,29 @@ class ScreenStateManager:
                     print(f"Error extracting text for {state}: {e}")
                     continue
             
+            elif matcher_type == "solid_color":
+                if not self.solid_color_matcher:
+                    print("ERROR: No solid color matcher set!")
+                    continue
+                try:
+                    # Logic: pattern is the color name (white/black), threshold is the tolerance
+                    matched = self.solid_color_matcher(screenshot_path, pattern, threshold)
+                except Exception as e:
+                    print(f"Error checking solid color for {state}: {e}")
+                    continue
+            
             if matched:
-                return True
+                return True, matcher_type, pattern
         
-        return False
-    
-    def _detect_state(self, screenshot_path: str) -> Optional[str]:
+        return False, None, None
+
+    def _detect_state(self, screenshot_path: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
         """Detect which state the current screenshot matches."""
         for state in self.state_criteria.keys():
-            if self._match_state_criterion(screenshot_path, state):
-                return state
-        return None
+            matched, matcher_type, pattern = self._match_state_criterion(screenshot_path, state)
+            if matched:
+                return state, matcher_type, pattern
+        return None, None, None
     
     def _save_unknown_state(self, screenshot_path: str) -> None:
         """Save and log unmatched screenshot."""
@@ -287,13 +316,17 @@ class ScreenStateManager:
                 print(f"[ITER {iteration}] Screenshot taken")
                 
                 # Detect state
-                detected_state = self._detect_state(screenshot_path)
+                detected_state, m_type, m_pattern = self._detect_state(screenshot_path)
                 
                 if detected_state:
+                    # Simplify pattern path if it's a file
+                    pattern_name = Path(m_pattern).name if m_type == "template" else m_pattern
+                    match_info = f" (via {m_type}: {pattern_name})"
+                    
                     # State detected
                     if detected_state != self.current_state:
                         # State changed
-                        print(f"State matched: {detected_state}")
+                        print(f"State matched: {detected_state}{match_info}")
                         self.previous_state = self.current_state
                         self.current_state = detected_state
                         state_hold_frames = 1
@@ -303,7 +336,7 @@ class ScreenStateManager:
                     else:
                         # Same state
                         state_hold_frames += 1
-                        print(f"State unchanged: {detected_state}")
+                        print(f"State unchanged: {detected_state}{match_info}")
                 else:
                     # No state detected
                     if self.current_state is not None:

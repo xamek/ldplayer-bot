@@ -4,7 +4,7 @@ Combines bot utilities with state machine to automate game tasks.
 """
 
 from state_machine import ScreenStateManager
-from utils import screenshot, template_present, extract_text, SCREENSHOT_FILE, is_ldplayer_running
+from utils import screenshot, template_present, extract_text, is_solid_color, SCREENSHOT_FILE, is_ldplayer_running
 
 # Import states package to trigger registration
 import states
@@ -30,6 +30,7 @@ def setup_bot() -> ScreenStateManager:
     # Set the matching functions
     sm.set_template_matcher(template_present)
     sm.set_text_extractor(extract_text)
+    sm.set_solid_color_matcher(is_solid_color)
     
     # Register all auto-discovered states
     sm.load_registered_states()
