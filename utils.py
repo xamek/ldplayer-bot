@@ -73,6 +73,29 @@ def tap_point(x, y):
     print(f"Tapped at ({x}, {y})")
 
 
+def send_tab():
+    """Send a tab keyevent to the emulator."""
+    run_adb(["shell", "input", "keyevent", "61"])
+    print("Sent TAB key")
+
+
+def tap_center():
+    """Tap the center of the screen."""
+    res = run_adb(["shell", "wm", "size"], capture=True, text=True)
+    if res and res.stdout:
+        # Expected format: "Physical size: 1280x720"
+        try:
+            size_str = res.stdout.split(":")[-1].strip()
+            width, height = map(int, size_str.split("x"))
+            tap_point(width // 2, height // 2)
+            return True
+        except (ValueError, IndexError):
+            print(f"Failed to parse screen size: {res.stdout}")
+    
+    print("Could not determine screen size for center tap")
+    return False
+
+
 def get_template_center(screenshot_file, template_file, threshold=0.8):
     """Return center (x, y) if template is found, else None."""
     res = match_template(screenshot_file, template_file)

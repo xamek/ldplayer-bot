@@ -10,12 +10,6 @@ from utils import screenshot, template_present, extract_text, SCREENSHOT_FILE, i
 import states
 
 
-def template_matcher(screenshot_path: str, template_path: str, threshold: float) -> bool:
-    """Match a template in a screenshot."""
-    if not template_path:
-        return False
-    return template_present(screenshot_path, template_path, threshold)
-
 
 def setup_bot() -> ScreenStateManager:
     """
@@ -34,7 +28,7 @@ def setup_bot() -> ScreenStateManager:
     )
     
     # Set the matching functions
-    sm.set_template_matcher(template_matcher)
+    sm.set_template_matcher(template_present)
     sm.set_text_extractor(extract_text)
     
     # Register all auto-discovered states

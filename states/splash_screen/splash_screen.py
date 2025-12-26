@@ -4,7 +4,7 @@ Detects the splash screen when it's fully loaded.
 """
 
 from state_machine import Action
-from utils import screenshot, SCREENSHOT_FILE, close_game, TEMPLATE_DIR
+from utils import screenshot, SCREENSHOT_FILE, tap_center, TEMPLATE_DIR
 import os
 
 
@@ -35,22 +35,21 @@ class PrintGameReadyAction(Action):
         return True
 
 
-class CloseGameAction(Action):
-    """Close the game."""
+class TapCenterAction(Action):
+    """Tap the center of the screen."""
     
     def __init__(self):
-        super().__init__("close_game")
+        super().__init__("tap_center")
     
     def execute(self) -> bool:
-        print("[GAME] Closing game...")
-        close_game()
-        return True
+        print("[GAME] Tapping center of screen...")
+        return tap_center()
 
 
 def get_splash_screen_actions():
     """Get all actions for the splash screen state."""
     return [
-        CloseGameAction(),
+        TapCenterAction(),
     ]
 
 from state_machine import auto_register_state
