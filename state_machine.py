@@ -16,9 +16,10 @@ from dataclasses import dataclass
 class StateDefinition:
     state: str
     patterns: List[str]  # Renamed from pattern to patterns to be generic
-    threshold: float
+    threshold: Optional[float]
     actions: List['Action']
     matcher_type: str = "template"  # "template" or "text"
+    matcher_kwargs: Optional[Dict] = None
 
 # Registry for auto-discovered states
 REGISTERED_STATES: List[StateDefinition] = []
@@ -35,7 +36,9 @@ def get_templates_from_dir(directory_path: str) -> List[str]:
                 patterns.append(os.path.join(directory_path, filename))
     return patterns
 
-def auto_register_state(state: str, pattern: Optional[str] = None, actions: List['Action'] = None, threshold: float = 0.8, matcher_type: str = "template", patterns: Optional[List[str]] = None):
+def auto_register_state(state: str, pattern: Optional[str] = None, actions: List['Action'] = None, 
+                       threshold: Optional[float] = None, matcher_type: str = "template", 
+                       patterns: Optional[List[str]] = None, matcher_kwargs: Optional[Dict] = None):
     """
     Auto-register a state definition.
     
@@ -60,7 +63,7 @@ def auto_register_state(state: str, pattern: Optional[str] = None, actions: List
     if not final_patterns:
         print(f"WARNING: State {state} registered with no patterns!")
         
-    REGISTERED_STATES.append(StateDefinition(state, final_patterns, threshold, actions, matcher_type))
+    REGISTERED_STATES.append(StateDefinition(state, final_patterns, threshold, actions, matcher_type, matcher_kwargs))
 
 
 class Action(ABC):
@@ -70,7 +73,7 @@ class Action(ABC):
         self.name = name
     
     @abstractmethod
-    def execute(self) -> bool:
+    def execute(self, context: Dict) -> bool:
         """Execute the action. Returns True if successful, False otherwise."""
         pass
 
@@ -81,18 +84,21 @@ class ScreenStateManager:
     Takes screenshots, matches templates to detect states, and executes actions.
     """
     
-    def __init__(self, screenshot_callback: Callable, poll_interval: float = 1.0):
+    def __init__(self, screenshot_callback: Callable, poll_interval: float = 1.0, default_threshold: float = 0.8):
         """
         Initialize the state machine.
         
         Args:
             screenshot_callback: Function that takes a screenshot and returns filepath
             poll_interval: Time between screenshot attempts in seconds
+            default_threshold: Base threshold for template matching
         """
         self.screenshot_callback = screenshot_callback
         self.poll_interval = poll_interval
+        self.default_threshold = default_threshold
         self.current_state: Optional[str] = None
         self.previous_state: Optional[str] = None
+        self.context: Dict = {}  # Shared context for activities and branching
         
         # Maps state -> List of (pattern, threshold, matcher_type)
         self.state_criteria: Dict[str, List[tuple]] = {}
@@ -113,6 +119,7 @@ class ScreenStateManager:
         self.log_file = Path(self.unknown_states_dir) / "unknown_states.log"
         Path(self.unknown_states_dir).mkdir(parents=True, exist_ok=True)
         self.unmatched_count = 0
+        self.ocr_cache: Dict[str, str] = {}  # Cache for OCR results
     
     def set_template_matcher(self, matcher_func: Callable[[str, str, float], bool]) -> None:
         """Set the template matching function."""
@@ -126,7 +133,7 @@ class ScreenStateManager:
         """Set the solid color matching function."""
         self.solid_color_matcher = matcher_func
     
-    def register_state(self, state: str, pattern: str, threshold: float = 0.8, matcher_type: str = "template") -> None:
+    def register_state(self, state: str, pattern: str, threshold: float = 0.8, matcher_type: str = "template", matcher_kwargs: Optional[Dict] = None) -> None:
         """
         Register a state with its matching criteria.
         Can be called multiple times for the same state to add alternative patterns.
@@ -136,11 +143,12 @@ class ScreenStateManager:
             pattern: Template path or text to match
             threshold: Match threshold (0.0 to 1.0) for templates
             matcher_type: "template" or "text"
+            matcher_kwargs: Optional dictionary of keyword arguments for the matcher
         """
         if state not in self.state_criteria:
             self.state_criteria[state] = []
             
-        self.state_criteria[state].append((pattern, threshold, matcher_type))
+        self.state_criteria[state].append((pattern, threshold, matcher_type, matcher_kwargs))
         print(f"Registered state {state} [{matcher_type}] with pattern: {pattern}")
     
     def register_action(self, state: str, action: Action) -> None:
@@ -154,9 +162,14 @@ class ScreenStateManager:
         """Register all auto-discovery states from the global registry."""
         print(f"\n[SETUP] Found {len(REGISTERED_STATES)} registered states.")
         for state_def in REGISTERED_STATES:
+            # Use state specific threshold or fall back to centralized default
+            threshold = state_def.threshold if state_def.threshold is not None else self.default_threshold
+            
             # Register each pattern for the state
             for pattern in state_def.patterns:
-                self.register_state(state_def.state, pattern, threshold=state_def.threshold, matcher_type=state_def.matcher_type)
+                self.register_state(state_def.state, pattern, threshold=threshold, 
+                                   matcher_type=state_def.matcher_type, 
+                                   matcher_kwargs=state_def.matcher_kwargs)
             
             # Register actions
             for action in state_def.actions:
@@ -173,14 +186,15 @@ class ScreenStateManager:
         
         criteria_list = self.state_criteria[state]
         
-        for pattern, threshold, matcher_type in criteria_list:
+        for pattern, threshold, matcher_type, matcher_kwargs in criteria_list:
             matched = False
+            kwargs = matcher_kwargs if matcher_kwargs else {}
             if matcher_type == "template":
                 if not self.template_matcher:
                     print("ERROR: No template matcher set!")
                     continue
                 try:
-                    matched = self.template_matcher(screenshot_path, pattern, threshold)
+                    matched = self.template_matcher(screenshot_path, pattern, threshold, **kwargs)
                 except Exception as e:
                     print(f"Error matching template for {state}: {e}")
                     continue
@@ -190,7 +204,14 @@ class ScreenStateManager:
                     print("ERROR: No text extractor set!")
                     continue
                 try:
-                    extracted_text = self.text_extractor(screenshot_path)
+                    # Create a unique cache key for this OCR request
+                    cache_key = f"{screenshot_path}_{str(kwargs)}"
+                    if cache_key in self.ocr_cache:
+                        extracted_text = self.ocr_cache[cache_key]
+                    else:
+                        extracted_text = self.text_extractor(screenshot_path, **kwargs)
+                        self.ocr_cache[cache_key] = extracted_text
+                        
                     matched = pattern.lower() in extracted_text.lower()
                 except Exception as e:
                     print(f"Error extracting text for {state}: {e}")
@@ -201,8 +222,8 @@ class ScreenStateManager:
                     print("ERROR: No solid color matcher set!")
                     continue
                 try:
-                    # Logic: pattern is the color name (white/black), threshold is the tolerance
-                    matched = self.solid_color_matcher(screenshot_path, pattern, threshold)
+                    # Pass keyword arguments to solid color matcher as well
+                    matched = self.solid_color_matcher(screenshot_path, pattern, threshold, **kwargs)
                 except Exception as e:
                     print(f"Error checking solid color for {state}: {e}")
                     continue
@@ -268,7 +289,7 @@ class ScreenStateManager:
         
         for action in self.state_actions[state]:
             try:
-                result = action.execute()
+                result = action.execute(self.context)
                 status = "✓" if result else "✗"
                 print(f"  > {action.name} {status}")
                 if not result:
@@ -310,6 +331,9 @@ class ScreenStateManager:
                     break
                 
                 iteration += 1
+                
+                # Clear OCR cache for new iteration/screenshot
+                self.ocr_cache.clear()
                 
                 # Take screenshot
                 screenshot_path = self._take_screenshot()

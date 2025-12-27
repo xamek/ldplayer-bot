@@ -19,12 +19,13 @@ class TapGameIconAction(Action):
     def __init__(self):
         super().__init__("tap_game_icon")
     
-    def execute(self) -> bool:
+    def execute(self, context) -> bool:
         # Use the first available template for the tap action (main icon)
         templates = get_templates_from_dir(LAUNCHER_TEMPLATES_DIR)
         if not templates:
             return False
-        return find_icon_and_tap(SCREENSHOT_FILE, templates[0], threshold=0.8)
+        threshold = context.get("threshold", 0.8)
+        return find_icon_and_tap(SCREENSHOT_FILE, templates[0], threshold=threshold)
 
 
 def get_launcher_actions():
@@ -40,7 +41,6 @@ if launcher_patterns:
     auto_register_state(
         LAUNCHER_STATE, 
         actions=get_launcher_actions(), 
-        threshold=0.8, 
         patterns=launcher_patterns
     )
 

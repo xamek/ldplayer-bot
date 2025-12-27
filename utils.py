@@ -159,8 +159,18 @@ def close_game():
     print("Closed the game (sent HOME).")
 
 
-def extract_text(image_path):
-    """Extract text from an image using Tesseract OCR."""
+def extract_text(image_path, config="", region=None, threshold_val=127, invert=False, adaptive=False):
+    """
+    Extract text from an image using Tesseract OCR.
+    
+    Args:
+        image_path: Path to the image file
+        config: Optional tesseract config string (e.g., "--psm 11")
+        region: Optional region tuple (y1, y2, x1, x2) as percentages (0.0 to 1.0)
+        threshold_val: Value for binary thresholding (default 127, use 0 for Otsu)
+        invert: Whether to invert the image (bitwise_not) before OCR
+        adaptive: Whether to use adaptive thresholding (overrides threshold_val)
+    """
     if not Path(image_path).exists():
         return ""
     try:
@@ -168,25 +178,39 @@ def extract_text(image_path):
         if img is None:
             return ""
         
+        # Apply ROI if specified
+        if region:
+            h, w = img.shape[:2]
+            y1, y2, x1, x2 = region
+            img = img[int(y1*h):int(y2*h), int(x1*w):int(x2*w)]
+        
         # Preprocessing for better OCR
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # Simple thresholding to make text stand out
-        # adjust 127/255 as needed or use adaptive thresholding
-        _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
         
-        text = pytesseract.image_to_string(thresh)
-        
-        # Debug: Print extracted text
-        clean_text = text.strip().replace('\n', ' ') 
-        # print(f"[OCR] Extracted: '{clean_text[:50]}...' (Len: {len(text)})")
+        # Thresholding
+        if adaptive:
+            # Adaptive thresholding (useful for varied lighting/contrast)
+            thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                          cv2.THRESH_BINARY, 11, 2)
+        elif threshold_val == 0:
+            # Otsu's thresholding
+            _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        else:
+            # Simple thresholding
+            _, thresh = cv2.threshold(gray, threshold_val, 255, cv2.THRESH_BINARY)
             
+        # Invert if requested
+        if invert:
+            thresh = cv2.bitwise_not(thresh)
+        
+        text = pytesseract.image_to_string(thresh, config=config)
         return text
     except Exception as e:
         print(f"OCR Error: {e}")
         return ""
 
 
-def is_solid_color(image_path, color_name, tolerance=30, std_dev_threshold=10):
+def is_solid_color(image_path, color_name, tolerance=30, std_dev_threshold=20):
     """
     Check if the image is a solid color (black or white).
     
