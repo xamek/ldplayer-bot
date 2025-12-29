@@ -52,14 +52,24 @@ def screenshot(filename):
         print("Failed to capture screenshot")
 
 
-def match_template(screenshot_file, template_file):
+def match_template(screenshot_file, template_file, retries=3):
     """Return (max_val, top_left, (w,h)) if match succeeded, else None."""
     if not Path(screenshot_file).exists() or not Path(template_file).exists():
         return None
-    img = cv2.imread(str(screenshot_file))
+        
+    img = None
     template = cv2.imread(str(template_file))
+    
+    # Retry reading screenshot to avoid conflict with ADB write
+    for i in range(retries):
+        img = cv2.imread(str(screenshot_file))
+        if img is not None:
+            break
+        time.sleep(0.1 * (i + 1))
+        
     if img is None or template is None:
         return None
+        
     result = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
     _, max_val, _, max_loc = cv2.minMaxLoc(result)
     h, w = template.shape[:2]

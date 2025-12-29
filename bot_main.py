@@ -65,7 +65,7 @@ def run_bot(max_iterations=None, target_activity="story", threshold=0.8):
         print("Please start LDPlayer before running the bot.")
         print("=" * 50)
         return
-    print("✓ LDPlayer is running\n")
+    print("[OK] LDPlayer is running\n")
     
     # Setup
     sm = setup_bot(target_activity=target_activity, threshold=threshold)

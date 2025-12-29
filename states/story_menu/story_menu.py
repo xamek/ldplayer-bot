@@ -11,15 +11,27 @@ STORY_MENU_TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 STORY_MENU_BUTTONS_DIR = os.path.join(os.path.dirname(__file__), "buttons")
 
 class StoryAction(Action):
-    """Placeholder action for Story Menu."""
+    """Action to navigate to Main Story from Story Menu."""
     
-    def __init__(self, name="story_idle"):
-        super().__init__(name)
+    def __init__(self):
+        super().__init__("click_main_story")
     
     def execute(self, context) -> bool:
-        target = context.get("target_activity")
-        print(f"[GAME] In Story Menu. Target is {target}.")
-        return True
+        print("[GAME] In Story Menu. Looking for Main Story...")
+        
+        main_story_template = os.path.join(STORY_MENU_BUTTONS_DIR, "main_story.png")
+        threshold = context.get("threshold", 0.7)
+        
+        if os.path.exists(main_story_template):
+            from utils import find_icon_and_tap, SCREENSHOT_FILE
+            return find_icon_and_tap(SCREENSHOT_FILE, main_story_template, threshold=threshold)
+        else:
+            print(f"  > Main Story button template not found: {main_story_template}")
+            # Fallback coordinate for 1600x900
+            from utils import tap_point
+            print("  > [FALLBACK] Tapping Main Story at (185, 332)...")
+            tap_point(185, 332)
+            return True
 
 def get_story_menu_actions():
     """Get all actions for the story menu state."""
