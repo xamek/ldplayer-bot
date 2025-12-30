@@ -24,6 +24,11 @@ def setup_bot(target_activity: str = "story", threshold: float = 0.8) -> ScreenS
     print(f"Default Threshold: {threshold}")
     print("=" * 50)
     
+    # Preload EasyOCR model
+    from utils import get_ocr_reader
+    print("[SETUP] Preloading EasyOCR model...")
+    get_ocr_reader()
+    
     # Create state machine with screenshot callback
     from utils import get_screenshot_path
     sm = ScreenStateManager(

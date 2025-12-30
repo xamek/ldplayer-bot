@@ -32,10 +32,7 @@ auto_register_state(
     matcher_type="text",
     patterns=["Loading", "Now Loading"],
     matcher_kwargs={
-        "config": "--psm 6",
-        "region": (0.80, 1.0, 0.70, 1.0),
-        "threshold_val": 0, # Otsu
-        "adaptive": False
+        "region": (0.80, 1.0, 0.70, 1.0)
     }
 )
 

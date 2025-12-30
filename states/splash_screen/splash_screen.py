@@ -34,12 +34,13 @@ def get_splash_screen_actions():
 
 # Auto-register this state with all templates in the folder
 splash_patterns = get_templates_from_dir(SPLASH_SCREEN_TEMPLATES_DIR)
-if splash_patterns:
-    auto_register_state(
-        SPLASH_SCREEN_STATE, 
-        actions=get_splash_screen_actions(), 
-        patterns=splash_patterns,
-        threshold=0.7
-    )
+# Register this state with text-based detection
+auto_register_state(
+    SPLASH_SCREEN_STATE, 
+    actions=get_splash_screen_actions(), 
+    matcher_type="text",
+    patterns=["TOUCH SCREEN TO START", "TOUCH SCREEN", "TOUCH", "SCREEN", "START"],
+    matcher_kwargs={}
+)
 
 

@@ -1,6 +1,8 @@
-# Ignore all files inside screenshots but keep the directory and .gitkeep
-screenshots/*
-!screenshots/.gitkeep
+# Screenshots
+screenshots/
+
+# Debug Temp
+debug_temp/
 
 # Ignore all files inside unknown_states but keep the directory and .gitkeep
 unknown_states/*

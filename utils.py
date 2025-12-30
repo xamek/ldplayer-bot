@@ -7,7 +7,6 @@ import os
 import subprocess
 from pathlib import Path
 import cv2
-import pytesseract
 import time
 
 # Set tesseract path (standard install location on Windows)
@@ -197,21 +196,47 @@ def is_game_running():
     return res and res.stdout.strip() != ""
 
 
-def extract_text(image_path, config="", region=None, threshold_val=127, invert=False, adaptive=False):
+# Global OCR Reader (Lazy loaded)
+OCR_READER = None
+
+def get_ocr_reader():
+    """Get or initialize the global EasyOCR reader."""
+    global OCR_READER
+    if OCR_READER is None:
+        import easyocr
+        import torch
+        import warnings
+        
+        # Suppress PyTorch DataLoader pin_memory warning on CPU
+        warnings.filterwarnings("ignore", category=UserWarning, message=".*pin_memory.*")
+        
+        print("[INIT] Loading EasyOCR model (this may take a moment)...")
+        
+        # Check for CUDA
+        use_gpu = torch.cuda.is_available()
+        if not use_gpu:
+            print("[INIT] No GPU detected. Running on CPU to avoid warnings.")
+            
+        # Initialize for English
+        OCR_READER = easyocr.Reader(['en'], gpu=use_gpu, verbose=False)
+        print("[INIT] EasyOCR loaded.")
+    return OCR_READER
+
+def extract_text(image_path, region=None, keywords=None, **kwargs):
     """
-    Extract text from an image using Tesseract OCR.
+    Extract text from an image using EasyOCR.
     
     Args:
         image_path: Path to the image file
-        config: Optional tesseract config string (e.g., "--psm 11")
         region: Optional region tuple (y1, y2, x1, x2) as percentages (0.0 to 1.0)
-        threshold_val: Value for binary thresholding (default 127, use 0 for Otsu)
-        invert: Whether to invert the image (bitwise_not) before OCR
-        adaptive: Whether to use adaptive thresholding (overrides threshold_val)
+        keywords: Optional list of keywords to look for (optimizes search if supported)
+        **kwargs: specific args to pass to reader.readtext
     """
     if not Path(image_path).exists():
         return ""
+    
     try:
+        reader = get_ocr_reader()
         img = cv2.imread(str(image_path))
         if img is None:
             return ""
@@ -222,27 +247,18 @@ def extract_text(image_path, config="", region=None, threshold_val=127, invert=F
             y1, y2, x1, x2 = region
             img = img[int(y1*h):int(y2*h), int(x1*w):int(x2*w)]
         
-        # Preprocessing for better OCR
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # Convert to RGB (EasyOCR expects RGB)
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
-        # Thresholding
-        if adaptive:
-            # Adaptive thresholding (useful for varied lighting/contrast)
-            thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                          cv2.THRESH_BINARY, 11, 2)
-        elif threshold_val == 0:
-            # Otsu's thresholding
-            _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        else:
-            # Simple thresholding
-            _, thresh = cv2.threshold(gray, threshold_val, 255, cv2.THRESH_BINARY)
-            
-        # Invert if requested
-        if invert:
-            thresh = cv2.bitwise_not(thresh)
+        # Read text
+        # detail=0 returns just the list of strings
+        # paragraph=True combines close text lines
+        # x_ths/y_ths control how close text needs to be to merge
+        results = reader.readtext(img_rgb, detail=0, paragraph=True, x_ths=1.0, y_ths=0.5)
         
-        text = pytesseract.image_to_string(thresh, config=config)
-        return text
+        full_text = " ".join(results)
+        return full_text
+        
     except Exception as e:
         print(f"OCR Error: {e}")
         return ""
