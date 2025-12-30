@@ -3,8 +3,9 @@ LDPlayer Bot - Main Bot Implementation
 Combines bot utilities with state machine to automate game tasks.
 """
 
+import time
 from state_machine import ScreenStateManager
-from utils import screenshot, template_present, extract_text, is_solid_color, SCREENSHOT_FILE, is_ldplayer_running
+from utils import screenshot, template_present, extract_text, is_solid_color, is_ldplayer_running
 
 # Import states package to trigger registration
 import states
@@ -24,8 +25,9 @@ def setup_bot(target_activity: str = "story", threshold: float = 0.8) -> ScreenS
     print("=" * 50)
     
     # Create state machine with screenshot callback
+    from utils import get_screenshot_path
     sm = ScreenStateManager(
-        screenshot_callback=lambda: screenshot(SCREENSHOT_FILE) or SCREENSHOT_FILE,
+        screenshot_callback=lambda iter_idx: screenshot(get_screenshot_path(iter_idx)) or get_screenshot_path(iter_idx),
         poll_interval=2.0,  # Check every 2 seconds
         default_threshold=threshold
     )
@@ -66,6 +68,13 @@ def run_bot(max_iterations=None, target_activity="story", threshold=0.8):
         print("=" * 50)
         return
     print("[OK] LDPlayer is running\n")
+    
+    # Check if the game is already running and close it
+    from utils import is_game_running, close_game
+    if is_game_running():
+        print("[STARTUP] Game is already running. Closing it for a clean start...")
+        close_game()
+        time.sleep(2)  # Give it a moment to close
     
     # Setup
     sm = setup_bot(target_activity=target_activity, threshold=threshold)

@@ -4,7 +4,7 @@ Detects the app launcher and launches the game.
 """
 
 from state_machine import Action, auto_register_state, get_templates_from_dir
-from utils import find_icon_and_tap, SCREENSHOT_FILE
+from utils import find_icon_and_tap
 import time
 import os
 
@@ -25,7 +25,8 @@ class TapGameIconAction(Action):
         if not templates:
             return False
         threshold = context.get("threshold", 0.8)
-        return find_icon_and_tap(SCREENSHOT_FILE, templates[0], threshold=threshold)
+        screenshot_path = context.get("last_screenshot")
+        return find_icon_and_tap(screenshot_path, templates[0], threshold=threshold)
 
 
 def get_launcher_actions():

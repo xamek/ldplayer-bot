@@ -19,10 +19,31 @@ import time
 
 
 # Configuration constants
-TEST_OUTPUT_DIR = "test-output"
+SCREENSHOTS_DIR = "screenshots"
 ADB_PATH = "adb"
-SCREENSHOT_FILE = os.path.join(TEST_OUTPUT_DIR, "screen.png")
 APP_PACKAGE = "com.klab.captain283.global"
+
+
+def get_screenshot_path(iteration: int = None) -> str:
+    """Generate a screenshot path, optionally including iteration number."""
+    if iteration is not None:
+        return os.path.join(SCREENSHOTS_DIR, f"screen_{iteration}.png")
+    return os.path.join(SCREENSHOTS_DIR, "screen.png")
+
+
+def clear_screenshots():
+    """Clear all files in the screenshots directory."""
+    try:
+        if os.path.exists(SCREENSHOTS_DIR):
+            for file in os.listdir(SCREENSHOTS_DIR):
+                if file == ".gitkeep":
+                    continue
+                file_path = os.path.join(SCREENSHOTS_DIR, file)
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+            print(f"[STARTUP] Cleared {SCREENSHOTS_DIR} folder")
+    except Exception as e:
+        print(f"ERROR: Failed to clear screenshots folder: {e}")
 
 
 def run_adb(cmd_args, capture=False, text=False):
@@ -40,8 +61,6 @@ def run_adb(cmd_args, capture=False, text=False):
 def screenshot(filename):
     """Capture a screenshot from LDPlayer and ensure output dir exists."""
     out_dir = Path(filename).parent
-    if str(out_dir) == ".":
-        out_dir = Path(TEST_OUTPUT_DIR)
     out_dir.mkdir(parents=True, exist_ok=True)
     proc = run_adb(["exec-out", "screencap", "-p"], capture=True)
     if proc and proc.stdout:
@@ -167,6 +186,15 @@ def close_game():
         return
     run_adb(["shell", "input", "keyevent", "3"])
     print("Closed the game (sent HOME).")
+
+
+def is_game_running():
+    """Check if the game app is running on the device."""
+    if not APP_PACKAGE:
+        return False
+    # Use pidof to check if the process exists
+    res = run_adb(["shell", "pidof", APP_PACKAGE], capture=True, text=True)
+    return res and res.stdout.strip() != ""
 
 
 def extract_text(image_path, config="", region=None, threshold_val=127, invert=False, adaptive=False):

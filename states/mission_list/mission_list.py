@@ -20,14 +20,15 @@ class FindIncompleteMissionAction(Action):
     def execute(self, context) -> bool:
         print("[GAME] Analyzing Mission List...")
         
-        # 1. Take a fresh screenshot
-        from utils import screenshot, SCREENSHOT_FILE
-        screenshot(SCREENSHOT_FILE)
+        # 1. Get the latest screenshot path from context
+        screenshot_path = context.get("last_screenshot")
+        if not screenshot_path:
+            return False
         
         import cv2
         import numpy as np
         
-        img = cv2.imread(SCREENSHOT_FILE)
+        img = cv2.imread(screenshot_path)
         if img is None:
             return False
             

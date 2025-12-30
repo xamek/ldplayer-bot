@@ -31,8 +31,9 @@ class BranchActivityAction(Action):
         
         if os.path.exists(button_template):
             print(f"  > Looking for button template: {target}.png (threshold: {threshold})")
-            from utils import find_icon_and_tap, SCREENSHOT_FILE
-            return find_icon_and_tap(SCREENSHOT_FILE, button_template, threshold=threshold)
+            from utils import find_icon_and_tap
+            screenshot_path = context.get("last_screenshot")
+            return find_icon_and_tap(screenshot_path, button_template, threshold=threshold)
         else:
             print(f"  > Button template not found: {button_template}")
             print(f"  > Fallback: Fixed positions (Please add {target}.png to buttons folder)")

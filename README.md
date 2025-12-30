@@ -27,7 +27,7 @@ ldplayer-bot/
 │   └── game_loading/        # Loading state
 │       ├── game_loading.py
 │       └── templates/       # Multiple loading screens
-├── test-output/             # Screenshots (gitignored)
+├── screenshots/             # Screenshots (gitignored)
 └── unknown_states/          # Unmatched states (gitignored)
 ```
 
@@ -69,7 +69,7 @@ auto_register_state(STATE_NAME, actions=[MyAction()], patterns=[TEMPLATE])
 
 ## Notes
 
-- Screenshots are saved to `test-output/` for debugging
+- Screenshots are saved to `screenshots/` for debugging
 - Unknown states are logged to `unknown_states/` for analysis
 - States support multiple patterns for robust detection
 

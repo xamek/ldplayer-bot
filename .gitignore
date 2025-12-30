@@ -1,6 +1,6 @@
-# Ignore all files inside test-output but keep the directory and .gitkeep
-test-output/*
-!test-output/.gitkeep
+# Ignore all files inside screenshots but keep the directory and .gitkeep
+screenshots/*
+!screenshots/.gitkeep
 
 # Ignore all files inside unknown_states but keep the directory and .gitkeep
 unknown_states/*

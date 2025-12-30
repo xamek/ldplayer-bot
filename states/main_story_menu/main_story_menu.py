@@ -19,37 +19,35 @@ class SelectIncompleteMissionAction(Action):
     def execute(self, context) -> bool:
         print("[GAME] Analyzing Main Story Menu missions...")
         
+        screenshot_path = context.get("last_screenshot")
+        
         # 1. Scroll left to the beginning (just in case)
-        from utils import run_adb
+        from utils import run_adb, screenshot
         print("  > Scrolling to the beginning (left)...")
         for _ in range(3):
             run_adb(["shell", "input", "swipe", "300", "500", "1300", "500", "500"])
             time.sleep(1)
             
         # 2. Take a fresh screenshot after scrolling
-        from utils import screenshot, SCREENSHOT_FILE
-        screenshot(SCREENSHOT_FILE)
+        if screenshot_path:
+            screenshot(screenshot_path)
+        else:
+            from utils import get_screenshot_path
+            screenshot_path = get_screenshot_path()
+            screenshot(screenshot_path)
         
         # 3. Analyze missions
-        # We'll look for cards and their completion status
-        # Card completion box is usually at the bottom of the card
-        # Numbers like "31/36" or "7/12"
-        
         import pytesseract
         import cv2
         import re
         
-        img = cv2.imread(SCREENSHOT_FILE)
+        img = cv2.imread(screenshot_path)
         if img is None:
             return False
             
         # Define areas for the cards (roughly)
         # Card 1: x=35-335, Card 2: x=340-640, Card 3: x=645-945, Card 4: x=950-1250, Card 5: x=1255-1555
         # The completion rate is at the bottom of each card
-        cards = [
-            (35, 305), (338, 610), (642, 915), (945, 1220), (1248, 1525)
-        ]
-        
         cards = [
             (35, 305), (338, 610), (642, 915), (945, 1220), (1248, 1525)
         ]

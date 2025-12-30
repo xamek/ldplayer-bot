@@ -4,7 +4,7 @@ Detects the splash screen when it's fully loaded.
 """
 
 from state_machine import Action, auto_register_state, get_templates_from_dir
-from utils import screenshot, SCREENSHOT_FILE, tap_center
+from utils import tap_center
 import os
 
 
@@ -38,7 +38,8 @@ if splash_patterns:
     auto_register_state(
         SPLASH_SCREEN_STATE, 
         actions=get_splash_screen_actions(), 
-        patterns=splash_patterns
+        patterns=splash_patterns,
+        threshold=0.7
     )
 
 

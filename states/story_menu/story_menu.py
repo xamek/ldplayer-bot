@@ -23,15 +23,17 @@ class StoryAction(Action):
         threshold = context.get("threshold", 0.7)
         
         if os.path.exists(main_story_template):
-            from utils import find_icon_and_tap, SCREENSHOT_FILE
-            return find_icon_and_tap(SCREENSHOT_FILE, main_story_template, threshold=threshold)
-        else:
-            print(f"  > Main Story button template not found: {main_story_template}")
-            # Fallback coordinate for 1600x900
-            from utils import tap_point
-            print("  > [FALLBACK] Tapping Main Story at (185, 332)...")
-            tap_point(185, 332)
-            return True
+            from utils import find_icon_and_tap
+            screenshot_path = context.get("last_screenshot")
+            if find_icon_and_tap(screenshot_path, main_story_template, threshold=threshold):
+                return True
+            print(f"  > Main Story icon not found at {threshold} threshold. Trying fallback...")
+        
+        # Fallback coordinate for 1600x900
+        from utils import tap_point
+        print("  > [FALLBACK] Tapping Main Story at (185, 332)...")
+        tap_point(185, 332)
+        return True
 
 def get_story_menu_actions():
     """Get all actions for the story menu state."""

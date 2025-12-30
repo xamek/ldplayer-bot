@@ -89,7 +89,7 @@ class ScreenStateManager:
         Initialize the state machine.
         
         Args:
-            screenshot_callback: Function that takes a screenshot and returns filepath
+            screenshot_callback: Function that takes iteration and returns filepath
             poll_interval: Time between screenshot attempts in seconds
             default_threshold: Base threshold for template matching
         """
@@ -175,9 +175,9 @@ class ScreenStateManager:
             for action in state_def.actions:
                 self.register_action(state_def.state, action)
     
-    def _take_screenshot(self) -> str:
+    def _take_screenshot(self, iteration: int) -> str:
         """Take a screenshot using the callback function."""
-        return self.screenshot_callback()
+        return self.screenshot_callback(iteration)
     
     def _match_state_criterion(self, screenshot_path: str, state: str) -> tuple[bool, Optional[str], Optional[str]]:
         """Check if a screenshot matches any of the state's criteria."""
@@ -306,6 +306,10 @@ class ScreenStateManager:
         Args:
             max_iterations: Maximum number of loop iterations (None = infinite)
         """
+        # Replaces direct import to avoid circular dependency if needed, 
+        # but utils is safe here.
+        from utils import clear_screenshots
+        
         if not self.template_matcher:
             print("ERROR: Template matcher not set. Use set_template_matcher() first.")
             return
@@ -316,6 +320,9 @@ class ScreenStateManager:
         
         # Clear unknown states folder at startup
         self._clear_unknown_states()
+        
+        # Clear screenshot folder at startup
+        clear_screenshots()
         
         self.is_running = True
         iteration = 0
@@ -336,7 +343,8 @@ class ScreenStateManager:
                 self.ocr_cache.clear()
                 
                 # Take screenshot
-                screenshot_path = self._take_screenshot()
+                screenshot_path = self._take_screenshot(iteration)
+                self.context["last_screenshot"] = screenshot_path
                 print(f"[ITER {iteration}] Screenshot taken")
                 
                 # Detect state

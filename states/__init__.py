@@ -4,9 +4,9 @@ Importing this package triggers registration of all states located in submodules
 """
 
 # Import state modules to trigger self-registration
+from . import game_loading
 from . import launcher
 from . import splash_screen
-from . import game_loading
 from . import main_menu
 from . import story_menu
 from . import main_story_menu
